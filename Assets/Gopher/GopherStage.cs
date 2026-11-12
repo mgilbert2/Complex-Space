@@ -34,23 +34,21 @@ public class GopherStage : MonoBehaviour
 
     void Start()
     {
-        // The recovered controller defaults to Hidden. Show the models for editing.
-        for (int i = 0; i < gophers.Length; i++)
-        {
-            gophers[i].Play("Idle_01", 0, i / (float)gophers.Length);
-            gophers[i].Update(0);
-        }
+        gameObject.AddComponent<GopherTask>().Initialize(this);
     }
 
     void Update()
     {
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
-        {
-            paused = !paused;
-            InputManager.pauseInput = paused;
-            Cursor.lockState = paused ? CursorLockMode.None : CursorLockMode.Locked;
-            Cursor.visible = paused;
-        }
+            SetPaused(!paused);
+    }
+
+    public void SetPaused(bool value)
+    {
+        paused = value;
+        InputManager.pauseInput = value;
+        Cursor.lockState = value ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = value;
     }
 
     void OnDestroy()
@@ -62,10 +60,4 @@ public class GopherStage : MonoBehaviour
         Cursor.visible = true;
     }
 
-    void OnGUI()
-    {
-        GUI.Box(new Rect(20, Screen.height - 100, 410, 80), "Gopher farm — spherical world");
-        GUI.Label(new Rect(32, Screen.height - 74, 390, 50),
-            "WASD move · Mouse look · Esc release cursor\nExplore the wrapped farm. Task rules pending.");
-    }
 }

@@ -9,6 +9,7 @@ using UnityEngine;
 public static class GopherSceneCheck
 {
     const string Key = "Gopher.Check";
+    const string Reports = "Temp/GopherChecks";
     static int frames;
     static readonly List<string> errors = new List<string>();
 
@@ -34,13 +35,16 @@ public static class GopherSceneCheck
     {
         frames = 0;
         errors.Clear();
+        Directory.CreateDirectory(Reports);
         EditorSceneManager.OpenScene(GopherSceneBuilder.ScenePath);
         SessionState.SetBool(Key, true);
         EditorApplication.isPlaying = true;
     }
 
+    [MenuItem("Tools/Hyperbolica Gophers/Check Playable Level")]
     public static void RunInEditor()
     {
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
         SessionState.SetBool("Gopher.KeepOpen", true);
         Run();
     }
@@ -67,35 +71,97 @@ public static class GopherSceneCheck
             CheckSeam("Farm_Well — chart D", new Vector3(0, 0, -1), new Vector3(0, 0, 1));
             if (WCollider.AllColliders.Count == 0) throw new Exception("Farm colliders did not initialize.");
             if (ShaderUtil.ShaderHasError(Shader.Find("Custom/SphericalShader"))) throw new Exception("Spherical shader has errors.");
-            foreach (var animator in stage.gophers)
-            {
-                var state = animator.GetCurrentAnimatorStateInfo(0);
-                if (!state.IsName("Idle_01") && !state.IsName("Idle_02") && !state.IsName("Idle_03") && !state.IsName("TriggerIdle"))
-                    throw new Exception("Gopher idle animation did not start for " + animator.name + ": " + state.shortNameHash);
-            }
             if (!GameObject.Find("Farm_Enclosure — chart U") || !GameObject.Find("Farm_Well — chart D") || !GameObject.Find("Farm_Windmill — chart R"))
                 throw new Exception("A requested landmark is missing.");
             if (!GameObject.Find("Portal")) throw new Exception("The portal is missing.");
             foreach (var transform in UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (transform.name.IndexOf("NPC", StringComparison.OrdinalIgnoreCase) >= 0) throw new Exception("Unexpected NPC.");
+            CheckGameplay(stage.GetComponent<GopherTask>());
             if (errors.Count > 0) throw new Exception(string.Join("\n", errors));
-            BeachSceneBuilder.Render(Camera.main, "../HyperbolicaBeach/GopherGameplay.png");
+            BeachSceneBuilder.Render(Camera.main, Reports + "/Gameplay.png");
             var camera = Camera.main;
             var rotation = camera.transform.localRotation;
             camera.transform.localRotation = Quaternion.Euler(0, 90, 0);
-            BeachSceneBuilder.Render(camera, "../HyperbolicaBeach/GopherFarmRight.png");
+            BeachSceneBuilder.Render(camera, Reports + "/FarmRight.png");
             camera.transform.localRotation = Quaternion.Euler(0, 180, 0);
-            BeachSceneBuilder.Render(camera, "../HyperbolicaBeach/GopherFarmBehind.png");
+            BeachSceneBuilder.Render(camera, Reports + "/FarmBehind.png");
             camera.transform.localRotation = rotation;
-            File.WriteAllText("../HyperbolicaBeach/GopherCheck.txt", "PASS: Four gophers, no NPCs, requested landmarks retained, six spherical ground cells, no vertical cells, four connected seams, idle animations, farm colliders, no missing scripts or runtime errors.\n");
+            File.WriteAllText(Reports + "/Check.txt", "PASS: Four gophers, no NPCs, requested landmarks, six connected spherical ground cells. Gameplay checks: emergence limit, hidden targets reject hits, weapon cooldown, blocked plasma, curved plasma hits all four targets, stunned targets reject repeat hits, completion, reset. No runtime errors.\n");
+            Debug.Log("[Gopher] Playable level checks passed. Report: " + Path.GetFullPath(Reports + "/Check.txt"));
             Finish(0);
         }
         catch (Exception ex)
         {
-            File.WriteAllText("../HyperbolicaBeach/GopherCheck.txt", ex.ToString());
+            File.WriteAllText(Reports + "/Check.txt", ex.ToString());
             Debug.LogException(ex);
             Finish(1);
         }
+    }
+
+    static void Require(bool condition, string message)
+    {
+        if (!condition) throw new Exception(message);
+    }
+
+    static void CheckGameplay(GopherTask task)
+    {
+        Require(task && task.Targets.Count == 4, "Playable task did not initialize.");
+        task.ResetLevel();
+        int outCount = 0;
+        foreach (var target in task.Targets) if (target.IsOut) outCount++;
+        Require(outCount == 2, "Expected two emerging gophers.");
+        Require(!task.Targets[3].TryShock(), "Hidden gopher accepted a hit.");
+        Require(task.TryFire() && !task.TryFire() && task.Shots == 1, "Weapon cooldown failed.");
+        task.ResetLevel();
+        InputManager.pauseInput = true;
+
+        var testTarget = task.Targets[0];
+        testTarget.Tick(0.6f);
+        testTarget.GetComponent<Animator>().Update(0);
+        var blockedPose = ShotAbove(testTarget.Center);
+        var obstruction = new GameObject("Gameplay check obstruction").AddComponent<HyperObject>();
+        obstruction.localGV = blockedPose;
+        int groupIndex = WCollider.AllColliders.Count;
+        WCollider.AllColliders.Add(new WCollider.Group
+        {
+            ho = obstruction,
+            colliders = new WCollider[] { new SphereWCollider(false, Vector3.zero, 0.06f) }
+        });
+        try
+        {
+            var blockedBolt = task.SpawnBolt(blockedPose);
+            blockedBolt.Advance(0.001f);
+            Require(testTarget.State == GopherTarget.TargetState.Outside, "A blocked shot hit a gopher.");
+        }
+        finally
+        {
+            WCollider.AllColliders.RemoveAt(groupIndex);
+            UnityEngine.Object.DestroyImmediate(obstruction.gameObject);
+        }
+
+        foreach (var target in task.Targets)
+        {
+            target.ResetTarget(0);
+            target.Emerge();
+            target.Tick(0.6f);
+            target.GetComponent<Animator>().Update(0);
+            var bolt = task.SpawnBolt(ShotAbove(target.Center));
+            for (int i = 0; i < 50 && target.CanBeHit; i++) bolt.Advance(0.001f);
+            Require(target.State == GopherTarget.TargetState.Shocked, "Curved plasma missed " + target.name);
+            target.Tick(0.81f);
+            Require(target.State == GopherTarget.TargetState.Stunned && !target.TryShock(), "Stun state failed.");
+        }
+        task.CheckCompletion();
+        Require(task.Complete && task.StunnedCount == 4 && !task.TryFire(), "Completion did not stop firing.");
+        task.ResetLevel();
+        Require(!task.Complete && task.StunnedCount == 0 && task.Shots == 0, "Level reset failed.");
+    }
+
+    static GyroVector ShotAbove(Vector3 point)
+    {
+        var origin = new GyroVector(Vector3.up * 0.05f) + new GyroVector(point);
+        Vector3 direction = (-origin) * point;
+        return Quaternion.FromToRotation(Vector3.forward, direction) + origin;
     }
 
     static void CheckSeam(string neighbourName, Vector3 centerEdge, Vector3 neighbourEdge)
