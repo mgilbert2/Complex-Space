@@ -8,5 +8,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Beach/Scenes/Chopped Beach task.unity
     guid: 85cb81014dd8b2742a9c29eac760875f
+  - enabled: 1
+    path: Assets/Gopher/Scenes/Chopped De Sitter farms.unity
+    guid: 008ae708b64e2f847ba88c851934d6a3
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
