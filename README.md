@@ -64,22 +64,6 @@ The exploration code uses four-space indentation, explicit control-flow blocks, 
 
 **Build Exploration Scenes** regenerates both exploration scene files and assets under `Assets/Exploration/Generated`. Save and commit manual changes before rebuilding; use the **Open** commands when you only want to inspect or play an existing scene. Extra recovered farm prefabs are in `Assets/Gopher/Recovered/GameObject`.
 
-## Validation and known limits
-
-Run **Tools > Complex Space > Check Exploration Scenes** after saving your work. It opens both scenes and enters Play Mode. Reports and rendered previews are written to `Logs/ExplorationChecks` (`results.txt`, `errors.txt`, and scene PNGs); `Logs` is ignored by Git.
-
-The recorded exploration run passed rolling, ground constraints, kick distance, pause, column impacts, trampoline launch, spherical geodesic closure, and hyperbolic streaming. Its long-travel check covers 200 cell changes outward, 200 back restoring the trampoline and stationary ball, another 200 outward, and recalling/kicking the ball there. These automated checks supplement visual playtesting; they do not establish exact equivalence to the original game's behavior.
-
-For batch execution, close this project in the editor and launch Unity with `-batchmode -projectPath <project-root> -executeMethod ExploreSceneCheck.Run -logFile <log-path>`. The checker exits Unity with a pass/fail exit code; omit `-quit` so its Play Mode checks can finish. `ExploreSceneCheck.BuildAndRun` regenerates the scenes before checking them.
-
-The farm provides **Tools > Hyperbolica Gophers > Check Playable Level**; the beach checker is `BeachPlayCheck.Run`. Their existence is separate from the recorded exploration pass above.
-
-Current limits:
-
-- Landmark history restores retraced routes and simplifies short loops. Very large loops returning by a different route still need broader tiling-path reduction for guaranteed restoration.
-- While a ball's distant chart is parked, friction and motion continue but obstacle collisions are skipped. **B** always recalls it.
-- Original task/generation method bodies were unavailable. Farm scenery assignments and gameplay, trampoline behavior, and ball mechanics are reconstructions.
-
 ## Troubleshooting
 
 - **Empty project or missing scene:** verify Hub opened this repository root, then open a listed `.unity` scene. Copying a scene file alone omits its scripts, shaders, meshes, and textures.
