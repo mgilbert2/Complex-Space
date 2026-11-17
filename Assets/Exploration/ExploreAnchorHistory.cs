@@ -2,21 +2,32 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Retains the central chart without representing a very distant origin as one
-/// Poincare point. Each entry is a bounded change of chart, not a distant point.
+/// Retains a chart's location as bounded changes of chart. A distant origin
+/// need not be collapsed into a Poincare point near the numerical boundary.
 /// </summary>
 public sealed class ExploreAnchorHistory
 {
-    readonly List<GyroVectorD> steps = new List<GyroVectorD>();
     const double IdentityPositionToleranceSquared = 1e-10;
     const double IdentityRotationToleranceSquared = 1e-10;
-    const double SafeRadiusSquared = .995 * .995;
+
+    // Leave a margin inside the unit Poincare disk for stable local rendering.
+    const double SafePoincareRadius = 0.995;
+    const double SafeRadiusSquared = SafePoincareRadius * SafePoincareRadius;
     const int ShortLoopLength = 8;
 
-    /// <summary>Number of retained changes of chart after local cancellation.</summary>
-    public int StepCount { get { return steps.Count; } }
+    readonly List<GyroVectorD> chartChanges = new List<GyroVectorD>();
 
-    public void Clear() { steps.Clear(); }
+    /// <summary>Number of retained changes of chart after local cancellation.</summary>
+    public int StepCount
+    {
+        get { return chartChanges.Count; }
+    }
+
+    /// <summary>Uses the current chart as the new history origin.</summary>
+    public void Clear()
+    {
+        chartChanges.Clear();
+    }
 
     /// <summary>
     /// Call once for each terrain rebase. The argument is the new chart's pose
@@ -24,39 +35,50 @@ public sealed class ExploreAnchorHistory
     /// </summary>
     public void Advance(GyroVector anchor)
     {
-        var change = -(GyroVectorD)anchor;
-        if (!Finite(change) || change.vec.sqrMagnitude >= 1)
+        var chartChange = -(GyroVectorD)anchor;
+        if (!IsFinite(chartChange) || chartChange.vec.sqrMagnitude >= 1)
+        {
             throw new ArgumentException("A hyperbolic origin rebase must be a finite interior chart pose.", "anchor");
-        if (Identity(change)) return;
+        }
 
-        int last = steps.Count - 1;
-        if (last >= 0 && Identity(steps[last] + change))
-            steps.RemoveAt(last);
+        if (IsIdentity(chartChange))
+        {
+            return;
+        }
+
+        int lastIndex = chartChanges.Count - 1;
+        if (lastIndex >= 0 && IsIdentity(chartChanges[lastIndex] + chartChange))
+        {
+            chartChanges.RemoveAt(lastIndex);
+        }
         else
-            steps.Add(change);
+        {
+            chartChanges.Add(chartChange);
+        }
 
         SimplifyShortLoops();
     }
 
     /// <summary>
-    /// Returns the pose that maps objects from the ORIGINAL central chart into
-    /// the CURRENT chart. Apply an object's original pose as original + pose.
-    /// False means to hide that central group until its chart is near again;
-    /// the retained path is untouched and can be retraced without saturation.
+    /// Returns the transform from the original chart into the current chart.
+    /// An object's current pose is originalPose + originPose. False means to
+    /// hide it until the original chart is near again; the retained path stays
+    /// intact so outward-and-return walks can be retraced without saturation.
     /// </summary>
     public bool TryGetOriginPose(out GyroVectorD pose)
     {
         pose = GyroVectorD.identity;
-        for (int i = 0; i < steps.Count; i++)
+        for (int i = 0; i < chartChanges.Count; i++)
         {
-            var next = pose + steps[i];
-            if (!Finite(next) || next.vec.sqrMagnitude > SafeRadiusSquared)
+            var nextPose = pose + chartChanges[i];
+            if (!IsFinite(nextPose) || nextPose.vec.sqrMagnitude > SafeRadiusSquared)
             {
                 pose = GyroVectorD.identity;
                 return false;
             }
-            pose = next;
+            pose = nextPose;
         }
+
         return true;
     }
 
@@ -64,42 +86,54 @@ public sealed class ExploreAnchorHistory
     {
         // A returned square can have a different tangent orientation. Preserve
         // that residual rotation instead of incorrectly discarding holonomy.
-        bool changed;
+        bool simplified;
         do
         {
-            changed = false;
-            var suffix = GyroVectorD.identity;
-            int first = Math.Max(0, steps.Count - ShortLoopLength);
-            for (int i = steps.Count - 1; i >= first; i--)
+            simplified = false;
+            var suffixPose = GyroVectorD.identity;
+            int earliestIndex = Math.Max(0, chartChanges.Count - ShortLoopLength);
+            for (int i = chartChanges.Count - 1; i >= earliestIndex; i--)
             {
-                suffix = steps[i] + suffix;
-                if (!Finite(suffix) || suffix.vec.sqrMagnitude > SafeRadiusSquared)
+                suffixPose = chartChanges[i] + suffixPose;
+                if (!IsFinite(suffixPose) || suffixPose.vec.sqrMagnitude > SafeRadiusSquared)
+                {
                     break;
-                int count = steps.Count - i;
-                if (count < 2 || suffix.vec.sqrMagnitude > IdentityPositionToleranceSquared)
-                    continue;
+                }
 
-                steps.RemoveRange(i, count);
-                var rotation = new GyroVectorD(suffix.gyr);
-                if (!Identity(rotation)) steps.Add(rotation);
-                changed = true;
+                int suffixLength = chartChanges.Count - i;
+                if (suffixLength < 2 || suffixPose.vec.sqrMagnitude > IdentityPositionToleranceSquared)
+                {
+                    continue;
+                }
+
+                chartChanges.RemoveRange(i, suffixLength);
+                var residualRotation = new GyroVectorD(suffixPose.gyr);
+                if (!IsIdentity(residualRotation))
+                {
+                    chartChanges.Add(residualRotation);
+                }
+
+                simplified = true;
                 break;
             }
-        } while (changed);
+        } while (simplified);
     }
 
-    static bool Identity(GyroVectorD pose)
+    static bool IsIdentity(GyroVectorD pose)
     {
-        return Finite(pose) &&
+        return IsFinite(pose) &&
             pose.vec.sqrMagnitude < IdentityPositionToleranceSquared &&
             pose.gyr.x * pose.gyr.x + pose.gyr.y * pose.gyr.y + pose.gyr.z * pose.gyr.z < IdentityRotationToleranceSquared;
     }
 
-    static bool Finite(GyroVectorD pose)
+    static bool IsFinite(GyroVectorD pose)
     {
-        return Finite(pose.vec.x) && Finite(pose.vec.y) && Finite(pose.vec.z) &&
-            Finite(pose.gyr.x) && Finite(pose.gyr.y) && Finite(pose.gyr.z) && Finite(pose.gyr.w);
+        return IsFinite(pose.vec.x) && IsFinite(pose.vec.y) && IsFinite(pose.vec.z) &&
+            IsFinite(pose.gyr.x) && IsFinite(pose.gyr.y) && IsFinite(pose.gyr.z) && IsFinite(pose.gyr.w);
     }
 
-    static bool Finite(double value) { return !double.IsNaN(value) && !double.IsInfinity(value); }
+    static bool IsFinite(double value)
+    {
+        return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
 }
