@@ -22,13 +22,13 @@ All scenes use **WASD** to move and the **mouse** to look or aim.
 | Elliptic Exploration | Finite, closed spherical space with grass, columns, a trampoline, and a ball. | [Elliptic scene](Assets/Exploration/Scenes/Elliptic%20Exploration.unity) |
 | Hyperbolic Exploration | Open negatively curved space with terrain streamed as you travel. | [Hyperbolic scene](Assets/Exploration/Scenes/Hyperbolic%20Exploration.unity) |
 
-**Beach:** walk into the chest to push it; **Q** opens the map, **R** resets, and **Esc** pauses/releases the cursor. Returning the chest's position alone is insufficient: moving it around a loop changes its orientation through parallel transport.
+**Beach:** walk into the chest to push it; **R** resets, and **Esc** pauses/releases the cursor. Returning the chest's position alone is insufficient: moving it around a loop changes its orientation through parallel transport.
 
 **Farm:** **left click** fires plasma, **R** restarts, and **Esc** pauses/resumes. Hidden and already stunned gophers reject hits. Completion displays your time and shot count. The modified scene removes NPCs and retains the fence, well/portal, and wind tower. Its retained name is “Chopped De Sitter farms”; its implemented geometry is spherical.
 
 **Exploration:** **Space** jumps, **left click** kicks a nearby ball in the direction you face, **B** recalls the ball in front of you, **R** resets the scene, and **Esc** opens the pause menu. Step onto the trampoline to bounce automatically. The pause menu switches between the two exploration spaces.
 
-Use **Tools > Complex Space > Open Elliptic Exploration / Open Hyperbolic Exploration** to select an exploration scene. The farm also has **Tools > Hyperbolica Gophers > Open Gopher Scene / Preview Spherical Farm**. These are independent scenes; a shared intro, level selector, and campaign progression are not implemented.
+Use **Tools > Complex Space > Open Elliptic Exploration / Open Hyperbolic Exploration** to select an exploration scene. The farm also has **Tools > Hyperbolica Gophers > Open Gopher Scene / Preview Spherical Farm**
 
 ## How the exploration spaces work
 
