@@ -9,7 +9,7 @@ using UnityEngine;
 public static class GopherSceneCheck
 {
     const string Key = "Gopher.Check";
-    const string Reports = "Temp/GopherChecks";
+    const string Reports = "Logs/GopherChecks";
     static int frames;
     static readonly List<string> errors = new List<string>();
 
@@ -76,7 +76,9 @@ public static class GopherSceneCheck
             if (!GameObject.Find("Portal")) throw new Exception("The portal is missing.");
             foreach (var transform in UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
                 if (transform.name.IndexOf("NPC", StringComparison.OrdinalIgnoreCase) >= 0) throw new Exception("Unexpected NPC.");
+            CheckRecoveredVisuals(stage);
             CheckGameplay(stage.GetComponent<GopherTask>());
+            CaptureBurrow(stage);
             if (errors.Count > 0) throw new Exception(string.Join("\n", errors));
             BeachSceneBuilder.Render(Camera.main, Reports + "/Gameplay.png");
             var camera = Camera.main;
@@ -86,7 +88,7 @@ public static class GopherSceneCheck
             camera.transform.localRotation = Quaternion.Euler(0, 180, 0);
             BeachSceneBuilder.Render(camera, Reports + "/FarmBehind.png");
             camera.transform.localRotation = rotation;
-            File.WriteAllText(Reports + "/Check.txt", "PASS: Four gophers, no NPCs, requested landmarks, six connected spherical ground cells. Gameplay checks: emergence limit, hidden targets reject hits, weapon cooldown, blocked plasma, curved plasma hits all four targets, stunned targets reject repeat hits, completion, reset. No runtime errors.\n");
+            File.WriteAllText(Reports + "/Check.txt", "PASS: Four gophers, no NPCs, requested landmarks, six connected spherical ground cells. Visual checks: four original soil rims, original gun rig and controller, separate color/AO maps. Gameplay checks: emergence limit, hidden targets reject hits, weapon cooldown, blocked plasma, curved plasma hits all four targets, stunned targets reject repeat hits, completion, reset. No runtime errors.\n");
             Debug.Log("[Gopher] Playable level checks passed. Report: " + Path.GetFullPath(Reports + "/Check.txt"));
             Finish(0);
         }
@@ -101,6 +103,57 @@ public static class GopherSceneCheck
     static void Require(bool condition, string message)
     {
         if (!condition) throw new Exception(message);
+    }
+
+    static void CheckRecoveredVisuals(GopherStage stage)
+    {
+        foreach (var actor in stage.gophers)
+        {
+            var burrow = actor.transform.Find("Recovered dirt burrow");
+            Require(burrow && burrow.GetComponent<MeshFilter>().sharedMesh.vertexCount > 30,
+                "Original dirt opening is missing for " + actor.name);
+            Require(burrow.GetComponent<Renderer>().sharedMaterial.GetTexture("_AOTex"),
+                "Original burrow shading is missing.");
+        }
+        var gun = GameObject.Find("Original Hyperbolica plasma gun");
+        Require(gun, "Recovered plasma gun is missing.");
+        var skin = gun.GetComponentInChildren<SkinnedMeshRenderer>();
+        Require(skin && skin.bones.Length == 3, "Original three-bone gun rig is missing.");
+        Require(gun.GetComponent<Animator>().runtimeAnimatorController, "Original gun controller is missing.");
+        Require(skin.sharedMaterial.mainTexture != skin.sharedMaterial.GetTexture("_AOTex"),
+            "Gun color palette and ambient occlusion must use separate textures.");
+    }
+
+    static void CaptureBurrow(GopherStage stage)
+    {
+        var task = stage.GetComponent<GopherTask>();
+        var camera = Camera.main;
+        var rotation = camera.transform.localRotation;
+        for (int i = 0; i < task.Targets.Count; i++)
+        {
+            var target = task.Targets[i];
+            var pose = target.GetComponent<HyperObject>().localGV;
+            HyperObject.worldGV = -(new GyroVector(HM.HyperTranslate(0, 0, -0.14f)) + pose);
+            camera.transform.localRotation = Quaternion.Euler(18, 0, 0);
+            string prefix = i == 0 ? "Burrow" : target.name;
+            target.ResetTarget(0);
+            RefreshVisuals();
+            BeachSceneBuilder.Render(camera, Reports + "/" + prefix + "Hidden.png");
+            target.Emerge();
+            target.Tick(0.6f);
+            target.GetComponent<Animator>().Update(0);
+            RefreshVisuals();
+            BeachSceneBuilder.Render(camera, Reports + "/" + prefix + "Emerged.png");
+        }
+        task.ResetLevel();
+        camera.transform.localRotation = rotation;
+        RefreshVisuals();
+    }
+
+    static void RefreshVisuals()
+    {
+        foreach (var hyperObject in UnityEngine.Object.FindObjectsByType<HyperObject>(FindObjectsSortMode.None))
+            hyperObject.SendMessage("LateUpdate");
     }
 
     static void CheckGameplay(GopherTask task)

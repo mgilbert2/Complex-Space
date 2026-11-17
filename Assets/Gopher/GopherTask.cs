@@ -17,7 +17,7 @@ public class GopherTask : MonoBehaviour
     AudioSource audioSource;
     AudioClip completeSound;
     Transform weapon;
-    Mesh weaponMesh;
+    Animator weaponAnimator;
     float cooldown;
     float elapsed;
     float finishedTime;
@@ -53,7 +53,6 @@ public class GopherTask : MonoBehaviour
     void Update()
     {
         if (!stage) return;
-        if (weapon) weapon.localPosition = new Vector3(0.25f, -0.21f, 0.55f - cooldown * 0.08f);
         if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) ResetLevel();
         if (InputManager.pauseInput) return;
         if (!Complete)
@@ -81,24 +80,25 @@ public class GopherTask : MonoBehaviour
 
     void CreateWeapon()
     {
-        var model = Resources.Load<Mesh>("Gopher/Object_Plasma_Gun");
-        var material = Resources.Load<Material>("Gopher/PlasmaBlaster");
-        if (!model || !material) return;
-        weapon = new GameObject("Plasma blaster").transform;
+        var prefab = Resources.Load<GameObject>("Gopher/PlasmaGunRecovered");
+        if (!prefab) throw new System.InvalidOperationException("The recovered plasma gun prefab is missing.");
+
+        // Preserve the original skinned mesh, bone hierarchy, local rotations,
+        // and firing clip. Only adapt its scene units to the first-person camera.
+        weapon = Instantiate(prefab).transform;
+        weapon.name = "Original Hyperbolica plasma gun";
         weapon.SetParent(stage.player.mainCamera.transform, false);
-        weapon.localPosition = new Vector3(0.25f, -0.21f, 0.55f);
-        weapon.localRotation = Quaternion.Euler(90, 0, 0);
-        weapon.localScale = Vector3.one * 2.8f;
-        weaponMesh = Instantiate(model);
-        var colors = new Color[weaponMesh.vertexCount];
-        for (int i = 0; i < colors.Length; i++) colors[i] = Color.white;
-        weaponMesh.colors = colors;
-        weapon.gameObject.AddComponent<MeshFilter>().sharedMesh = weaponMesh;
-        var renderer = weapon.gameObject.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = material;
-        var properties = new MaterialPropertyBlock();
-        properties.SetMatrix("_HyperRot", Matrix4x4.identity);
-        renderer.SetPropertyBlock(properties);
+        const float cameraUnitScale = 12f;
+        weapon.localPosition *= cameraUnitScale;
+        weapon.localScale *= cameraUnitScale;
+        weaponAnimator = weapon.GetComponent<Animator>();
+        foreach (var renderer in weapon.GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            renderer.updateWhenOffscreen = true;
+            var properties = new MaterialPropertyBlock();
+            properties.SetMatrix("_HyperRot", Matrix4x4.identity);
+            renderer.SetPropertyBlock(properties);
+        }
     }
 
     public void CheckCompletion()
@@ -122,6 +122,7 @@ public class GopherTask : MonoBehaviour
         viewPose = new GyroVector(Vector3.forward * 0.025f) + viewPose;
         SpawnBolt(viewPose - HyperObject.worldGV);
         cooldown = 0.5f;
+        weaponAnimator.SetTrigger("Fire");
         Shots++;
         PlaySound(shotSound, 0.35f);
         return true;
@@ -150,6 +151,11 @@ public class GopherTask : MonoBehaviour
         Shots = 0;
         elapsed = 0;
         cooldown = 0;
+        if (weaponAnimator)
+        {
+            weaponAnimator.Rebind();
+            weaponAnimator.Play("Idle", 0, 0);
+        }
         for (int i = 0; i < targets.Count; i++) targets[i].ResetTarget(0.5f + i * 0.8f);
         for (int i = 0; i < Mathf.Min(2, targets.Count); i++) targets[i].Emerge();
         HyperObject.worldGV = new GyroVector(-stage.player.startHyper);
@@ -174,7 +180,6 @@ public class GopherTask : MonoBehaviour
     void OnDestroy()
     {
         if (boltMaterial) Destroy(boltMaterial);
-        if (weaponMesh) Destroy(weaponMesh);
     }
 
     void OnGUI()

@@ -28,6 +28,8 @@ The beach keeps its tapered outline and now extends 50% farther in width and dep
 
 **Farm:** **left click** fires plasma, **R** restarts, and **Esc** pauses/resumes. Hidden and already stunned gophers reject hits. Completion displays your time and shot count. The modified scene removes NPCs and retains the fence, well/portal, and wind tower. Its retained name is “Chopped De Sitter farms”; its implemented geometry is spherical.
 
+Each of the four gophers has a persistent dirt burrow using a soil-rim mesh and shading recovered from the original farm. The rim is seated on the local curved terrain, with a dark recessed center. The weapon uses the game's original skinned model, three-bone rig, color palette, ambient-occlusion map, controller, and firing animation. Its first-person mounting is adapted to this project's camera. These visual restorations retain the reconstructed four-gopher gameplay.
+
 **Exploration:** **Space** jumps, **left click** kicks a nearby ball in the direction you face, **B** recalls the ball in front of you, **R** resets the scene, and **Esc** opens the pause menu. Step onto the trampoline to bounce automatically. The pause menu switches between the two exploration spaces.
 
 Use **Tools > Complex Space > Open Elliptic Exploration / Open Hyperbolic Exploration** to select an exploration scene. The farm also has **Tools > Hyperbolica Gophers > Open Gopher Scene / Preview Spherical Farm**
@@ -77,4 +79,4 @@ The exploration code uses four-space indentation, explicit control-flow blocks, 
 
 Game meshes, textures, animations, and audio were recovered from CodeParade's *Hyperbolica*. The modified scenes and reconstructed behavior are this project's adaptations.
 
-The geometry engine is CodeParade/HackerPoet's [HyperEngine](https://github.com/HackerPoet/HyperEngine), with its [MIT license retained here](Assets/HyperEngine/LICENSE.txt). That engine license does not license the recovered Hyperbolica art or audio. See [EXPLORATION_PROGRESS.md](EXPLORATION_PROGRESS.md) for the saved implementation and validation notes.
+The geometry engine is CodeParade/HackerPoet's [HyperEngine](https://github.com/HackerPoet/HyperEngine), with its [MIT license retained here](Assets/HyperEngine/LICENSE.txt). That engine license does not license the recovered Hyperbolica art or audio.
