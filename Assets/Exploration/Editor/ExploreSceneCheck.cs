@@ -9,6 +9,7 @@ using UnityEngine;
 public static class ExploreSceneCheck
 {
     const string Key="Explore.Check";
+    static string ReportDir=>Path.GetFullPath(Path.Combine(Application.dataPath,"../Logs/ExplorationChecks"));
     static int frames;
     static bool checkedScene;
     static ExploreSceneCheck()
@@ -18,18 +19,20 @@ public static class ExploreSceneCheck
         Application.logMessageReceived+=(message,trace,type)=>
         {
             if(SessionState.GetBool(Key,false)&&(type==LogType.Error||type==LogType.Exception||type==LogType.Assert))
-                File.AppendAllText("Temp/ExplorationChecks/errors.txt",message+"\n"+trace+"\n");
+                File.AppendAllText(Path.Combine(ReportDir,"errors.txt"),message+"\n"+trace+"\n");
         };
     }
+    [MenuItem("Tools/Complex Space/Check Exploration Scenes")]
     public static void Run()
     {
-        Directory.CreateDirectory("Temp/ExplorationChecks");
-        File.WriteAllText("Temp/ExplorationChecks/results.txt","");
-        File.WriteAllText("Temp/ExplorationChecks/errors.txt","");
+        Directory.CreateDirectory(ReportDir);
+        File.WriteAllText(Path.Combine(ReportDir,"results.txt"),"");
+        File.WriteAllText(Path.Combine(ReportDir,"errors.txt"),"");
         SessionState.SetBool(Key+"Failed",false);
         SessionState.SetInt(Key+"Index",0);SessionState.SetBool(Key,true);
         Enter();
     }
+    public static void BuildAndRun(){ExploreSceneBuilder.BuildBoth();Run();}
     static void Enter()
     {
         frames=0;checkedScene=false;
@@ -55,15 +58,35 @@ public static class ExploreSceneCheck
             InputManager.pauseInput=false;
             var ball=stage.ball;
             HyperObject.worldGV=GyroVector.identity;
-            stage.player.mainCamera.transform.rotation=Quaternion.identity;
-            ball.Initialize(new GyroVector(0,0,.12f));
+            stage.player.mainCamera.transform.rotation=Quaternion.Euler(0,30,0);
+            ball.Initialize(new GyroVector(.04f,0,.12f));
             Require(ball.TryKick(stage.player),"Nearby ball cannot be kicked");
             for(int i=0;i<120;i++)ball.Advance(1f/120);
             Require(Mathf.Abs(ball.hyper.localGV.vec.y)<1e-6f,"Ball left ground surface");
             Require(ball.speed>0&&ball.speed<.65f,"Ball friction failed");
             Require((ball.hyper.localGV.Point()-new Vector3(0,0,.12f)).magnitude>.1f,"Ball did not advance");
+            var beforePause=ball.hyper.localGV.Point();
+            stage.SendMessage("Pause",true);
+            ball.Advance(.5f);
+            Require((ball.hyper.localGV.Point()-beforePause).sqrMagnitude<1e-10f,"Ball moved while paused");
+            stage.SendMessage("Pause",false);
             ball.Initialize(new GyroVector(HM.HyperTranslate(0,0,1.2f)));
             Require(!ball.TryKick(stage.player),"Distant ball can be kicked");
+            var column=UnityEngine.Object.FindObjectsByType<HyperObject>(FindObjectsSortMode.None).First(h=>h.name=="Stone column 1");
+            var columnPose=column.localGV;
+            var playerPose=new GyroVector(HM.HyperTranslate(0,0,-.28f))+columnPose;
+            HyperObject.worldGV=-playerPose;
+            stage.player.mainCamera.transform.rotation=Quaternion.identity;
+            ball.Initialize(new GyroVector(HM.HyperTranslate(0,0,-.16f))+columnPose);
+            Require(ball.TryKick(stage.player),"Cannot kick ball toward column");
+            for(int i=0;i<100;i++)ball.Advance(.01f);
+            Require(ball.CollisionCount>0,"Ball passed through a stone column");
+            Require(Mathf.Abs(ball.hyper.localGV.vec.y)<1e-6f,"Impact lifted ball off ground");
+            // Descending above the central mat should trigger a launch.
+            HyperObject.worldGV=-stage.trampoline.localGV;
+            stage.player.velocity=Vector3.down*.01f;
+            stage.SendMessage("Update");
+            Require(stage.player.velocity.y>0,"Trampoline did not bounce player");
             if(stage.elliptic)
             {
                 // tan has period pi: a complete great circle returns to the starting point.
@@ -73,24 +96,42 @@ public static class ExploreSceneCheck
             }
             else
             {
-                for(int i=0;i<30;i++)
+                var ballBefore=ball.hyper.localGV.Point();
+                var trampolineBefore=stage.trampoline.localGV.Point();
+                ball.speed=0;
+                for(int i=0;i<200;i++)
                 {
                     HyperObject.worldGV=new GyroVector(-Vector3.forward*(float)HM.CELL_WIDTH);
                     stage.SendMessage("LateUpdate");
                 }
-                Require(stage.streamCount>=30,"Terrain does not continue streaming");
+                Require(stage.streamCount>=200,"Terrain does not continue streaming");
                 Require(HyperObject.worldGV.vec.sqrMagnitude<.5f,"Streaming did not rebase player");
+                Require(!stage.trampoline.gameObject.activeSelf,"Distant central landmark was not parked");
+                for(int i=0;i<200;i++)
+                {
+                    HyperObject.worldGV=new GyroVector(Vector3.forward*(float)HM.CELL_WIDTH);
+                    stage.SendMessage("LateUpdate");
+                }
+                Require(stage.trampoline.gameObject.activeSelf&&(stage.trampoline.localGV.Point()-trampolineBefore).magnitude<.0002f,"Central trampoline did not survive long out-and-back travel");
+                Require((ball.hyper.localGV.Point()-ballBefore).magnitude<.001f,"Stationary ball did not survive long out-and-back travel");
+                for(int i=0;i<200;i++)
+                {
+                    HyperObject.worldGV=new GyroVector(-Vector3.forward*(float)HM.CELL_WIDTH);
+                    stage.SendMessage("LateUpdate");
+                }
+                stage.RecallBall();
+                Require(ball.TryKick(stage.player),"Cannot recall and kick ball in a distant streamed region");
+                foreach(var ho in UnityEngine.Object.FindObjectsByType<HyperObject>(FindObjectsSortMode.None))
+                {
+                    ho.UpdateComposedGV();
+                    Require(!float.IsNaN(ho.composedGV.vec.x)&&!float.IsNaN(ho.composedGV.gyr.w),"Non-finite rebased object: "+ho.name);
+                }
             }
-            // Descending above the central mat should trigger a launch.
-            HyperObject.worldGV=-stage.trampoline.localGV;
-            stage.player.velocity=Vector3.down*.01f;
-            stage.SendMessage("Update");
-            Require(stage.player.velocity.y>0,"Trampoline did not bounce player");
-            File.AppendAllText("Temp/ExplorationChecks/results.txt",(stage.elliptic?"Elliptic":"Hyperbolic")+": PASS; cells="+stage.terrain.Length+"; ball, ground constraint, distance gate, trampoline, geometry and streaming/closure passed.\n");
+            File.AppendAllText(Path.Combine(ReportDir,"results.txt"),(stage.elliptic?"Elliptic":"Hyperbolic")+": PASS; cells="+stage.terrain.Length+"; rolling, ground constraint, kick distance, pause, column impact, trampoline and "+(stage.elliptic?"closed geodesic":"200-cell out/return, continued streaming, distant recall")+" passed.\n");
         }
         catch(Exception e)
         {
-            File.AppendAllText("Temp/ExplorationChecks/results.txt","FAIL: "+e+"\n");
+            File.AppendAllText(Path.Combine(ReportDir,"results.txt"),"FAIL: "+e+"\n");
             SessionState.SetBool(Key+"Failed",true);
         }
         EditorApplication.isPlaying=false;
@@ -101,7 +142,7 @@ public static class ExploreSceneCheck
         var rt=new RenderTexture(1280,720,24);camera.targetTexture=rt;
         camera.Render();RenderTexture.active=rt;
         var image=new Texture2D(1280,720,TextureFormat.RGB24,false);image.ReadPixels(new Rect(0,0,1280,720),0,0);image.Apply();
-        File.WriteAllBytes("Temp/ExplorationChecks/"+name+".png",image.EncodeToPNG());
+        File.WriteAllBytes(Path.Combine(ReportDir,name+".png"),image.EncodeToPNG());
         camera.targetTexture=null;RenderTexture.active=null;
         UnityEngine.Object.DestroyImmediate(image);UnityEngine.Object.DestroyImmediate(rt);
     }
@@ -113,7 +154,7 @@ public static class ExploreSceneCheck
         int index=SessionState.GetInt(Key+"Index",0)+1;SessionState.SetInt(Key+"Index",index);
         if(index<2){EditorApplication.delayCall+=Enter;return;}
         SessionState.SetBool(Key,false);
-        bool fail=SessionState.GetBool(Key+"Failed",false)||new FileInfo("Temp/ExplorationChecks/errors.txt").Length>0;
+        bool fail=SessionState.GetBool(Key+"Failed",false)||new FileInfo(Path.Combine(ReportDir,"errors.txt")).Length>0;
         Debug.Log("[Explore] Checks complete: "+(fail?"FAIL":"PASS"));
         if(Application.isBatchMode)EditorApplication.Exit(fail?1:0);
     }

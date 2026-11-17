@@ -115,6 +115,7 @@ public static class ExploreSceneBuilder
         {
             float angle=i*Mathf.PI/3;
             var root=new GameObject("Stone column "+(i+1));
+            root.transform.localScale=Vector3.one/HM.KLEIN_V;
             var ho=root.AddComponent<HyperObject>();
             ho.localGV=new GyroVector(HM.HyperTranslate(new Vector3(Mathf.Sin(angle),0,Mathf.Cos(angle))*.65f));
             ho.allowCulling=false;
@@ -128,9 +129,12 @@ public static class ExploreSceneBuilder
         var tramp=new GameObject("Original Hyperbolica trampoline");
         var trampMesh=AssetDatabase.LoadAssetAtPath<Mesh>(Root+"Recovered/Plain_Trampoline.asset");
         tramp.AddComponent<MeshFilter>().sharedMesh=trampMesh;
-        tramp.AddComponent<MeshRenderer>().sharedMaterial=Material((elliptic?"E":"H")+" Trampoline",elliptic,Color.white,AssetDatabase.LoadAssetAtPath<Texture2D>(Root+"Recovered/Plain_Trampoline.png"));
-        tramp.transform.localScale=Vector3.one*.18f;
+        var trampolineMaterial=Material((elliptic?"E":"H")+" Trampoline",elliptic,Color.white,AssetDatabase.LoadAssetAtPath<Texture2D>(Root+"Recovered/Plain_Pallette.png"));
+        trampolineMaterial.SetTexture("_AOTex",AssetDatabase.LoadAssetAtPath<Texture2D>(Root+"Recovered/Plain_Trampoline.png"));
+        tramp.AddComponent<MeshRenderer>().sharedMaterial=trampolineMaterial;
+        tramp.transform.localScale=Vector3.one*.18f/HM.KLEIN_V;
         stage.trampoline=tramp.AddComponent<HyperObject>();stage.trampoline.allowCulling=false;
+        stage.bounceSound=AssetDatabase.LoadAssetAtPath<AudioClip>(Root+"Recovered/trampoline.ogg");
 
         var ballRoot=new GameObject("Kickable surface ball");var ball=ballRoot.AddComponent<SurfaceBall>();
         ball.hyper=ballRoot.AddComponent<HyperObject>();ball.hyper.allowCulling=false;
@@ -147,7 +151,8 @@ public static class ExploreSceneBuilder
         cam.clearFlags=CameraClearFlags.SolidColor;cam.backgroundColor=new Color(.67f,.83f,.94f);
         camObj.AddComponent<AudioListener>();camObj.AddComponent<DisableCameraCull>();
         stage.player=playerObject.AddComponent<Player>();stage.player.mainCamera=camObj;
-        stage.player.height=.055f;stage.player.walkingSpeed=2.5f;stage.player.jumpSpeed=2.2f;
+        // Player.Awake applies KleinV/.5774; preserve the same physical size in both spaces.
+        stage.player.height=.07f*.5774f/HM.KLEIN_V;stage.player.walkingSpeed=2.5f;stage.player.jumpSpeed=2.2f;
         stage.player.startHyper=HM.HyperTranslate(0,0,-.36f);
         var sun=new GameObject("Sun").AddComponent<Light>();sun.type=LightType.Directional;sun.transform.rotation=Quaternion.Euler(50,-25,0);
         RenderSettings.ambientLight=new Color(.8f,.85f,.8f);RenderSettings.skybox=null;

@@ -12,10 +12,15 @@ public class ExploreSpace : MonoBehaviour
     public SurfaceBall ball;
     public Material grass;
     public Mesh groundMesh;
+    public AudioClip bounceSound;
     public int streamCount;
     bool paused;
     float bounceCooldown;
+    Vector3 trampolineScale;
+    AudioSource audioSource;
     readonly List<GyroVector> neighborhood = new List<GyroVector>();
+    readonly Dictionary<HyperObject,GyroVectorD> fixedLandmarks=new Dictionary<HyperObject,GyroVectorD>();
+    readonly ExploreAnchorHistory anchorHistory=new ExploreAnchorHistory();
 
     public void Configure()
     {
@@ -43,9 +48,20 @@ public class ExploreSpace : MonoBehaviour
 
     void Start()
     {
+        trampolineScale=trampoline.transform.localScale;
+        audioSource=gameObject.AddComponent<AudioSource>();
+        audioSource.spatialBlend=0;
         WorldBuilder.UpdateReplacementShaders(true);
         if (!elliptic)
         {
+            foreach (var ho in FindObjectsByType<HyperObject>(FindObjectsSortMode.None))
+            {
+                ho.highPrecision=true;
+                ho.localGVD=(GyroVectorD)ho.localGV;
+                ho.allowCulling=true;
+                if(ho!=ball.hyper&&System.Array.IndexOf(terrain,ho)<0)
+                    fixedLandmarks.Add(ho,ho.localGVD);
+            }
             neighborhood.Add(GyroVector.identity);
             var depths = new List<int> { 0 };
             for (int i=0; i<neighborhood.Count; i++)
@@ -66,10 +82,12 @@ public class ExploreSpace : MonoBehaviour
                 var tile = new GameObject("Streamed grass cell");
                 tile.AddComponent<MeshFilter>().sharedMesh = groundMesh;
                 tile.AddComponent<MeshRenderer>().sharedMaterial = grass;
-                tiles.Add(tile.AddComponent<HyperObject>());
+                var ho=tile.AddComponent<HyperObject>();
+                ho.highPrecision=true;
+                tiles.Add(ho);
             }
             terrain = tiles.ToArray();
-            for (int i=0;i<terrain.Length;i++) terrain[i].localGV=neighborhood[i];
+            for (int i=0;i<terrain.Length;i++) SetPose(terrain[i],neighborhood[i]);
         }
     }
 
@@ -79,15 +97,19 @@ public class ExploreSpace : MonoBehaviour
         if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame) Pause(!paused);
         if (keyboard != null && keyboard.rKey.wasPressedThisFrame) ResetExploration();
         if (paused) return;
+        if(keyboard!=null&&keyboard.bKey.wasPressedThisFrame) RecallBall();
         bounceCooldown -= Time.deltaTime;
+        float spring=Mathf.Max(0,bounceCooldown)/.6f;
+        trampoline.transform.localScale=new Vector3(trampolineScale.x,trampolineScale.y*(1-.28f*spring*Mathf.Sin(spring*Mathf.PI)),trampolineScale.z);
         var relative=trampoline.localGV+HyperObject.worldGV;
         var p=relative.Point();
         // The trampoline uses the same tangent frame as the player, not a Euclidean trigger.
-        if (new Vector2(p.x,p.z).magnitude < .10f && player.velocity.y <= 0 &&
-            -HyperObject.worldGV.vec.y < .045f && bounceCooldown <= 0)
+        if (trampoline.gameObject.activeSelf && new Vector2(p.x,p.z).magnitude < .05f && player.velocity.y <= 0 &&
+            -HyperObject.worldGV.vec.y < .025f && bounceCooldown <= 0)
         {
             player.velocity.y=player.height*5.8f;
             bounceCooldown=.6f;
+            if(bounceSound)audioSource.PlayOneShot(bounceSound,.65f);
         }
         if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) ball.TryKick(player);
     }
@@ -106,18 +128,44 @@ public class ExploreSpace : MonoBehaviour
         if(anchor.vec.sqrMagnitude < .01f) return;
         // Rebase the entire world onto an existing cell, preserving positions and orientation.
         // This prevents approaching the Poincare coordinate boundary during long walks.
-        foreach(var ho in FindObjectsByType<HyperObject>(FindObjectsSortMode.None))
-            ho.localGV=ho.localGV-anchor;
-        HyperObject.worldGV=anchor+HyperObject.worldGV;
+        anchorHistory.Advance(anchor);
+        HyperObject.worldGVD=(GyroVectorD)anchor+HyperObject.worldGVD;
+        bool visible=anchorHistory.TryGetOriginPose(out GyroVectorD originPose);
+        foreach(var landmark in fixedLandmarks)
+        {
+            var ho=landmark.Key;
+            ho.gameObject.SetActive(visible);
+            if(visible)
+            {
+                ho.localGVD=landmark.Value+originPose;
+                ho.localGV=(GyroVector)ho.localGVD;
+            }
+            else foreach(var group in WCollider.AllColliders)
+                if(group.ho==ho)group.skip=true;
+        }
         ball.Rebase(anchor);
-        for(int i=0;i<terrain.Length;i++) terrain[i].localGV=neighborhood[i];
+        for(int i=0;i<terrain.Length;i++) SetPose(terrain[i],neighborhood[i]);
         streamCount++;
+    }
+
+    static void SetPose(HyperObject ho,GyroVector pose)
+    {
+        ho.localGV=pose;
+        ho.localGVD=(GyroVectorD)pose;
     }
 
     public void ResetExploration()
     {
         // Reloading also restores the fixed landmarks after any streaming rebases.
         UnityEngine.SceneManagement.SceneManager.LoadScene(gameObject.scene.name);
+    }
+    public void RecallBall()
+    {
+        var view=HyperObject.worldGV.ProjectToPlane();
+        Vector3 forward=player.mainCamera.transform.forward;forward.y=0;
+        if(forward.sqrMagnitude<.01f)forward=Vector3.forward;
+        var pose=new GyroVector(HM.HyperTranslate(forward.normalized*.12f))-view;
+        ball.Initialize(pose);
     }
     void Pause(bool value)
     {
@@ -129,10 +177,15 @@ public class ExploreSpace : MonoBehaviour
     {
         GUI.Box(new Rect(15,Screen.height-112,570,96), "");
         GUI.Label(new Rect(28,Screen.height-106,550,27),elliptic?"ELLIPTIC EXPLORATION · closed positive curvature":"HYPERBOLIC EXPLORATION · continuously streamed negative curvature");
-        GUI.Label(new Rect(28,Screen.height-80,550,25),"WASD move · mouse look · Space jump · click near ball to kick · R reset · Esc pause");
+        GUI.Label(new Rect(28,Screen.height-80,550,25),"WASD move · Space jump · click to kick · B recall ball · R reset · Esc pause");
         GUI.Label(new Rect(28,Screen.height-55,550,25),"Step onto the central trampoline. Follow the grid and the six colored stone columns.");
         GUI.Label(new Rect(Screen.width/2-5,Screen.height/2-12,20,25),"+");
-        if(paused && GUI.Button(new Rect(Screen.width/2-80,Screen.height/2+30,160,35),"Resume")) Pause(false);
+        if(paused)
+        {
+            if(GUI.Button(new Rect(Screen.width/2-105,Screen.height/2+30,210,35),"Resume")) Pause(false);
+            if(GUI.Button(new Rect(Screen.width/2-105,Screen.height/2+72,210,35),elliptic?"Explore hyperbolic space":"Explore elliptic space"))
+                UnityEngine.SceneManagement.SceneManager.LoadScene(elliptic?"Hyperbolic Exploration":"Elliptic Exploration");
+        }
     }
     void OnDestroy()
     {

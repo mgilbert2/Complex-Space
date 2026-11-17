@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: H Trampoline
+  m_Name: Custom/HyperbolicShader
   m_Shader: {fileID: 4800000, guid: 49d3d38fa24077140bad500222a8931e, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -24,11 +24,11 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _AOTex:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: f5efdb19ed27ac049b99785dba5c4d9c, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: f5efdb19ed27ac049b99785dba5c4d9c, type: 3}
+        m_Texture: {fileID: 2800000, guid: a0783c5e2c41869479744ea9260c5c29, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []

@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: H Column 3
+  m_Name: Custom/HyperbolicShader
   m_Shader: {fileID: 4800000, guid: 49d3d38fa24077140bad500222a8931e, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
