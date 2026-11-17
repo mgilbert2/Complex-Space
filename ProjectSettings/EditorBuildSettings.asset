@@ -11,5 +11,11 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Gopher/Scenes/Chopped De Sitter farms.unity
     guid: 008ae708b64e2f847ba88c851934d6a3
+  - enabled: 1
+    path: Assets/Exploration/Scenes/Elliptic Exploration.unity
+    guid: 958535d2cd782884695e158b69a130d1
+  - enabled: 1
+    path: Assets/Exploration/Scenes/Hyperbolic Exploration.unity
+    guid: a9065c4e80e5c8f479e637b98ebb902a
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
