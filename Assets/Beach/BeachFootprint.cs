@@ -5,7 +5,8 @@ using UnityEngine;
 // Coordinates are in the recovered mesh's local XZ plane, viewed from above.
 public static class BeachFootprint
 {
-    public const float LayoutScale = 3f;
+    // Expand the shoreline without scaling the player, puzzle, or landmarks.
+    public const float LayoutScale = 4.5f;
     public static readonly Vector2[] Points = MakeOutline();
     public const float ChestClearance = 0.18f;
     public static readonly Vector2 Min = new Vector2(-1.38f, -0.745f) * LayoutScale;

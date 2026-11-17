@@ -69,7 +69,7 @@ public static class BeachPlayCheck
                 }
                 Check(missing==0,"No missing scripts"); Check(npcs==0,"No NPCs");
                 var sand=GameObject.Find("Beach — treasure area only").GetComponent<MeshFilter>().sharedMesh;
-                Check(sand.bounds.size.x>8f && sand.bounds.size.z>4.3f,"Beach expanded to three times its width and depth");
+                Check(sand.bounds.size.x>12f && sand.bounds.size.z>6.5f,"Expanded shoreline dimensions match the larger beach");
                 Check(puzzle.chest.GetComponent<MeshFilter>().sharedMesh.bounds.size.x<.3f,"Chest retains its original mesh size");
                 Check(Mathf.Abs(puzzle.player.height-BeachWorld.PlayerHeight*HM.KLEIN_V/.5774f)<1e-6f,"Player proportions match the expanded curved-space chart");
                 Check(HM.K==-1 && HM.UseRadialChart && Shader.GetGlobalFloat("_Enable")>.5f && Shader.GetGlobalFloat("_BeachRadialChart")>.5f,"Hyperbolic movement and rendering are enabled in Play Mode");
@@ -79,6 +79,7 @@ public static class BeachPlayCheck
                 float loopAngle=Quaternion.Angle(start.gyr,loop.gyr);
                 Check(Vector3.Distance(start.Point(),loop.Point())<.0001f && loopAngle>8,"Restored local curvature: closed loop rotates the frame by "+loopAngle+" degrees");
                 Check(GameObject.Find("Red and white lighthouse") && GameObject.Find("Red sailboat offshore") && GameObject.Find("Turquoise flag at treasure hole"),"Lighthouse, sailboat, and treasure marker are present");
+                Check(!BeachFootprint.Contains(GameObject.Find("Red sailboat offshore").transform.position),"Sailboat remains offshore beyond the expanded land");
                 Check(RenderSettings.skybox && Camera.main.fieldOfView>=78,"Coastal sky and wide game view are configured");
                 Check(!ShaderUtil.ShaderHasError(Shader.Find("Beach/Hyperbolic Ocean")),"Animated hyperbolic ocean shader compiles");
                 foreach(var unit in new[]{new Vector3(4,0,.7f),new Vector3(-3.8f,0,1.9f),new Vector3(.4f,.3f,.2f)})
@@ -97,6 +98,9 @@ public static class BeachPlayCheck
                 Check(BeachFootprint.Contains(puzzle.world.chestStart,BeachFootprint.ChestClearance),"Chest starts inside the tapered beach");
                 Check(BeachFootprint.Contains(puzzle.hole.position,BeachFootprint.ChestClearance),"Treasure hole stays inside the tapered beach");
                 Check(BeachFootprint.Contains(HM.PoincareToUnit(puzzle.player.startHyper,true),.12f),"Player starts inside the tapered beach");
+                Check(BeachFootprint.Contains(new Vector3(5,0,1),.12f) &&
+                    BeachFootprint.Contains(new Vector3(-4.5f,0,3.1f),.12f),
+                    "New eastern and northwestern walking areas are inside the expanded beach");
                 initial=puzzle.chest.localGV;
                 HyperObject.worldGV=new GyroVector(-HM.UnitToPoincare(new Vector3(0.1f,0,-0.18f),true));
                 foreach(var ho in UnityEngine.Object.FindObjectsByType<HyperObject>(FindObjectsSortMode.None)) ho.UpdateCollisions();

@@ -146,7 +146,9 @@ public static class BeachShoreline
         puzzle.chestRadius=.05f;puzzle.positionToleranceSquared=.0003f;
         world.appliedLayoutScale=BeachFootprint.LayoutScale;
         world.appliedRadialChart=true;
-        BeachEnvironmentBuilder.Build();
+        // Expanding the shore should preserve existing landmark edits and meshes.
+        if(!GameObject.Find("Beach landmarks")) BeachEnvironmentBuilder.Build();
+        BeachEnvironmentBuilder.KeepBoatOffshore();
         EditorUtility.SetDirty(player);EditorUtility.SetDirty(puzzle);
         var overview=GameObject.Find("Editor overview").GetComponent<Camera>();
         overview.transform.position=new Vector3(2,2.5f,-3)*BeachFootprint.LayoutScale;

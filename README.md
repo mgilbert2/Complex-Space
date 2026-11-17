@@ -24,6 +24,8 @@ All scenes use **WASD** to move and the **mouse** to look or aim.
 
 **Beach:** walk into the chest to push it; **R** resets, and **Esc** pauses/releases the cursor. Returning the chest's position alone is insufficient: moving it around a loop changes its orientation through parallel transport.
 
+The beach keeps its tapered outline and now extends 50% farther in width and depth than the previous layout. The player, chest, treasure hole, and umbrella retain their sizes and positions; the sailboat moves outward to stay offshore. `BeachFootprint.LayoutScale` controls the shoreline extent; **Tools > Hyperbolica Beach > Apply Sketched Shoreline** regenerates the sand, water edge, and playable boundary together while preserving the existing landmarks.
+
 **Farm:** **left click** fires plasma, **R** restarts, and **Esc** pauses/resumes. Hidden and already stunned gophers reject hits. Completion displays your time and shot count. The modified scene removes NPCs and retains the fence, well/portal, and wind tower. Its retained name is “Chopped De Sitter farms”; its implemented geometry is spherical.
 
 **Exploration:** **Space** jumps, **left click** kicks a nearby ball in the direction you face, **B** recalls the ball in front of you, **R** resets the scene, and **Esc** opens the pause menu. Step onto the trampoline to bounce automatically. The pause menu switches between the two exploration spaces.

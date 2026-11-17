@@ -45,6 +45,17 @@ public static class BeachEnvironmentBuilder
         Triangle(flag.transform,"Turquoise pennant",new Vector3(0,.43f,0),new Vector3(.15f,.37f,0),new Vector3(0,.30f,0),cyan);
         var motion=root.AddComponent<BeachSceneryMotion>();motion.beacon=beacon.transform;motion.boat=boat.transform;
         CreateSky();
+        KeepBoatOffshore();
+    }
+
+    public static void KeepBoatOffshore()
+    {
+        var boat = GameObject.Find("Red sailboat offshore");
+        if (!boat) return;
+
+        // Follow the expanding coast while preserving the boat's size and heading.
+        float shorelineGrowth = BeachFootprint.LayoutScale / 3f;
+        boat.transform.localPosition = new Vector3(2.30f * shorelineGrowth, -0.07f, -0.65f * shorelineGrowth);
     }
 
     static GameObject HyperRoot(string name,Transform parent,Vector3 position)
